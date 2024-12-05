@@ -46,6 +46,12 @@ class McuDevice:
             return
         self.SendMidiToExtender(extenderIndex, midi.MIDI_NOTEON + (0x7F << 8) + (firstTrack << 16))
 
+    def SendButtonToExtenders(self, button):
+        """ Dispatches a MIDI message to all extenders, letting them know that a button was pressed """
+        if self.isExtender:
+            return
+        self.SendMidiToExtenders(midi.MIDI_NOTEON + (button << 8) + (1 << 16))
+
     def SetBackLightTimeout(self, Minutes): 
         """ Sets the backlight timeout (0 should switch off immediately, but doesn't really work well) """
         # This is code from the original script, but I don't think it does anything on the Xtouch, might do some stuff on other MCU devices though, so I'm leaving it in for now

@@ -217,7 +217,7 @@ class TMackieCU(mcu_base_class.McuBaseClass):
                 elif self.Tracks[event.midiChan].SliderEventID >= 0:
                     # slider (mixer track volume)
                     event.handled = True
-                    mixer.automateEvent(self.Tracks[event.midiChan].SliderEventID, mcu_device_fader_conversion.McuFaderToFlFader(event.inEv + 0x2000), midi.REC_MIDIController, self.SmoothSpeed)
+                    mixer.automateEvent(self.Tracks[event.midiChan].SliderEventID, mcu_device_fader_conversion.McuFaderToFlFader(event.inEv + 0x2000), midi.REC_MIDIController, 0)
                     # hint
                     n = mixer.getAutoSmoothEventValue(self.Tracks[event.midiChan].SliderEventID)
                     s = mixer.getEventIDValueString(self.Tracks[event.midiChan].SliderEventID, n)
@@ -258,22 +258,21 @@ class TMackieCU(mcu_base_class.McuBaseClass):
                     elif (event.data1 == mcu_buttons.FaderBankLeft) | (event.data1 == mcu_buttons.FaderBankRight): # mixer bank
                         if event.data2 > 0:
                             self.SetFirstTrack(self.FirstTrackT[self.FirstTrack] - 8 + int(event.data1 == mcu_buttons.FaderBankRight) * 16)
-                            self.McuDevice.SendMidiToExtenders(midi.MIDI_NOTEON + (event.data1 << 8) + (event.data2 << 16))
+                            self.McuDevice.SendButtonToExtenders(event.data1)
                     elif (event.data1 == mcu_buttons.FaderChannelLeft) | (event.data1 == mcu_buttons.FaderChannelRight):
                         if event.data2 > 0:
                             self.SetFirstTrack(self.FirstTrackT[self.FirstTrack] - 1 + int(event.data1 == mcu_buttons.FaderChannelRight) * 2)
-                            self.McuDevice.SendMidiToExtenders(midi.MIDI_NOTEON + (event.data1 << 8) + (event.data2 << 16))
+                            self.McuDevice.SendButtonToExtenders(event.data1)
                     elif event.data1 == mcu_buttons.Flip: # self.Flip
                         if event.data2 > 0:
                             self.Flip = not self.Flip
-                            self.McuDevice.SendMidiToExtenders(midi.MIDI_NOTEON + (event.data1 << 8) + (event.data2 << 16))
+                            self.McuDevice.SendButtonToExtenders(mcu_buttons.Flip)
                             self.UpdateColT()
                             self.UpdateMasterSectionLEDs()
-                    elif event.data1 == mcu_buttons.Smooth: # smoothing
-                        if event.data2 > 0:
-                            self.SmoothSpeed = int(self.SmoothSpeed == 0) * 469
-                            self.UpdateMasterSectionLEDs()
-                            self.OnSendMsg('Control smoothing ' + mcu_constants.OffOnStr[int(self.SmoothSpeed > 0)])
+                    #elif event.data1 == mcu_buttons.Smooth: # smoothing
+                        #if event.data2 > 0:
+                            #self.UpdateMasterSectionLEDs()
+                            #self.OnSendMsg('Control smoothing ' + mcu_constants.OffOnStr[int(self.SmoothSpeed > 0)])
                     elif event.data1 == mcu_buttons.Scrub: # self.Scrub
                         if event.data2 > 0:
                             self.Scrub = not self.Scrub
@@ -310,7 +309,7 @@ class TMackieCU(mcu_base_class.McuBaseClass):
                             self.OnSendMsg(mcu_constants.PageDescriptions[n])
                             if self.Page != n:
                                 self.SetPage(n)
-                            self.McuDevice.SendMidiToExtenders(midi.MIDI_NOTEON + (event.data1 << 8) + (event.data2 << 16))
+                            self.McuDevice.SendButtonToExtenders(event.data1)
 
                     elif event.data1 == mcu_buttons.Shift: # self.Shift
                         self.Shift = event.data2 > 0
@@ -637,7 +636,7 @@ class TMackieCU(mcu_base_class.McuBaseClass):
             self.McuDevice.SetButton(mcu_buttons.Rude_Solo_Led, midi.TranzPort_OffOnBlinkT[b], 16, skipIsAssignedCheck=True)
             
             # smoothing
-            self.McuDevice.SetButton(mcu_buttons.Smooth, midi.TranzPort_OffOnT[self.SmoothSpeed > 0], 17, skipIsAssignedCheck=True)
+            # self.McuDevice.SetButton(mcu_buttons.Smooth, midi.TranzPort_OffOnT[self.SmoothSpeed > 0], 17, skipIsAssignedCheck=True)
             # self.Flip
             self.McuDevice.SetButton(mcu_buttons.Flip, midi.TranzPort_OffOnT[self.Flip], 18, skipIsAssignedCheck=True)
             # snap

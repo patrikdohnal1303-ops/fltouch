@@ -103,7 +103,7 @@ class TMackieCU_Ext(mcu_base_class.McuBaseClass):
                 elif self.Tracks[event.midiChan].SliderEventID >= 0:
                     # slider (mixer track volume)
                     event.handled = True
-                    mixer.automateEvent(self.Tracks[event.midiChan].SliderEventID, mcu_device_fader_conversion.McuFaderToFlFader(event.inEv + 0x2000), midi.REC_MIDIController, self.SmoothSpeed)
+                    mixer.automateEvent(self.Tracks[event.midiChan].SliderEventID, mcu_device_fader_conversion.McuFaderToFlFader(event.inEv + 0x2000), midi.REC_MIDIController, 0)
                     # hint
                     n = mixer.getAutoSmoothEventValue(self.Tracks[event.midiChan].SliderEventID)
                     s = mixer.getEventIDValueString(self.Tracks[event.midiChan].SliderEventID, n)

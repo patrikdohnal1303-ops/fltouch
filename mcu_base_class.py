@@ -29,12 +29,9 @@ class McuBaseClass():
         self.FirstTrackT = [0, 0]
 
         self.FreeCtrlT = [0 for x in range(mcu_constants.FreeTrackCount + 1)]  # 64+1 sliders
-        self.Clicking = False
 
         self.Page = 0
         self.Flip = False
-        
-        self.SmoothSpeed = 0
 
         self.McuDevice = device
 
@@ -42,8 +39,6 @@ class McuBaseClass():
         """ Called when the script has been started """
         self.FirstTrackT[0] = 1
         self.FirstTrack = 0
-        self.SmoothSpeed = 0 # TODO: is not required if OnInit is not called more than once, need to check if this is the case
-        self.Clicking = True
 
         device.setHasMeters()
         
@@ -54,7 +49,7 @@ class McuBaseClass():
         # init hardware
         self.McuDevice.Initialize()
         self.McuDevice.SetBackLightTimeout(2) # backlight timeout to 2 minutes
-        self.McuDevice.SetClicking(self.Clicking)
+        self.McuDevice.SetClicking(True)
 
     def OnDeInit(self):
         """ Called before the script will be stopped """
@@ -333,9 +328,9 @@ class McuBaseClass():
                     self.OnSendMsg(s)
                 return
             else:
-                mixer.automateEvent(self.Tracks[trackNumber].KnobResetEventID, self.Tracks[trackNumber].KnobResetValue, midi.REC_MIDIController, self.SmoothSpeed)
+                mixer.automateEvent(self.Tracks[trackNumber].KnobResetEventID, self.Tracks[trackNumber].KnobResetValue, midi.REC_MIDIController, 0)
         else:
-            mixer.automateEvent(self.Tracks[trackNumber].KnobEventID, midiValue, midi.REC_Controller, self.SmoothSpeed, 1, resolution)
+            mixer.automateEvent(self.Tracks[trackNumber].KnobEventID, midiValue, midi.REC_Controller, 0, 1, resolution)
 
         # show the value of the knob on the display
         n = mixer.getAutoSmoothEventValue(self.Tracks[trackNumber].KnobEventID)
