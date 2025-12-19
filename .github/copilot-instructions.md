@@ -1,50 +1,74 @@
 # fltouch — Copilot Instructions
 
-Purpose: Help an AI coding agent be productive quickly when working on the FL Studio X-Touch scripts in this repo.
+Purpose: Make an AI coding agent productive quickly on the FL Studio X-Touch MCU scripts.
 
 ## Quick summary
-- This repo implements an FL Studio MIDI control script (MCU protocol) for Behringer X-Touch and extenders.
-- Runtime: These scripts run inside FL Studio and use the FL Studio scripting API (modules like `device`, `mixer`, `ui`, `midi`, `transport`, `channels`).
+- This repo implements an FL Studio MIDI Control Surface script (MCU protocol) for Behringer X-Touch and extenders.
+- Scripts run inside FL Studio and depend on the FL Studio scripting API (modules like `device`, `mixer`, `ui`, `midi`, `transport`, `channels`).
+- Editors: key entry points are `device_XTouch.py` (main controller) and `device_XTouch_Ext.py` (extender variant).
 
 ## Architecture & responsibilities
-- `device_XTouch.py` — Main controller logic; defines `TMackieCU` with `OnInit`, `OnMidiMsg`, and `OnRefresh` handlers.
-- `device_XTouch_Ext.py` — Extender variant (`TMackieCU_Ext`), reuses common base behavior.
-- `mcu_device.py` — Hardware abstraction: building sysex messages, screen text/colors, sending messages to extenders.
-- `mcu_base_class.py` — Shared logic between main controller and extenders: page management, track mapping (`Tracks`), text updates, meter updates.
-- `mcu_*` modules (`mcu_track.py`, `mcu_device_track_*.py`, `mcu_colors.py`, `mcu_constants.py`, etc.) — small, focused helpers for UI/LED/track/state handling.
+- `device_XTouch.py` — main controller class `TMackieCU` (handlers: `OnInit`, `OnDeInit`, `OnRefresh`, `OnMidiMsg`, `OnIdle`). Modify here for high-level behavior and binding of UI controls.
+- `mcu_base_class.py` — shared controller logic: page management, `Tracks` mapping, `SetKnobValue`, `UpdateTrack` helpers.
+- `mcu_device.py` — hardware abstraction for the X-Touch: sysex construction (`SetTextDisplay`, `SetScreenColors`), extenders (`SendMidiToExtenders`, `SetFirstTrackOnExtender`) and per-device track wrappers (`mcu_device_track_*`).
+- `mcu_colors.py`, `mcu_constants.py`, `mcu_pages.py` — small, opinionated helpers for color mapping, constants and page enums.
 
-## Runtime & entry points
-- FL Studio discovers scripts from the file header comments (e.g. top of `device_XTouch.py` includes `name=` and `supportedDevices=`).
-- Key handlers an agent may modify: `OnInit`, `OnDeInit`, `OnRefresh`, `OnMidiMsg` in `device_XTouch.py` and extender file.
-- Low-level hardware messages are constructed in `mcu_device.py` (e.g. `SetTextDisplay`, `SetScreenColors`, product IDs: `0x14` main, `0x15` extender).
+## Key patterns & project specifics
+- FL Studio runtime: many imports (e.g., `mixer`, `device`) are provided by FL Studio; unit tests use API stubs from `requirements.txt`.
+- Handlers follow PascalCase naming (e.g., `OnMidiMsg`) while modules use snake_case.
+- MIDI event model: inspect `event` fields inside `OnMidiMsg` (common fields: `midiId`, `midiChan`, `data1`, `data2`, `inEv`, `outEv`, `isIncrement`). CC and pitch-bend are handled differently — see `device_XTouch.OnMidiMsg`.
+- Free mode: `mcu_pages.Free` uses virtual event IDs (see `mcu_constants.FreeEventID`) and virtual tracks (`FreeTrackCount = 64`). Free knobs/buttons map to `BaseEventID + offset` (use `mixer.remoteFindEventValue` to read saved positions).
+- Faders: pitch-bend is used for faders (midi channels 0–8). Conversion to FL internal values is done in `mcu_device_fader_conversion.McuFaderToFlFader`.
+- Extenders: `device.dispatchReceiverCount()` indicates how many extenders are connected. Use `McuDevice.SetFirstTrackOnExtender` and `SendMidiToExtenders` to coordinate assignment and LEDs.
+- UI feedback: use `OnSendMsg` (console/FL message) and `McuDevice.SetTextDisplay` for hardware display updates. `debug.PrintMidiInfo` is available for dumping event details locally.
 
-## Testing & local development
-- Tests are small unit tests focused on utilities (e.g. `test_colormap.py`, `test_mcu_colors.py`).
-- Use the provided API stubs for local testing: `pip install -r requirements.txt` (contains `FL-Studio-API-Stubs`).
-- Run tests: `python -m unittest discover -v` or `python -m unittest test_colormap.py`.
+## Tests & local development
+- Install stubs: `pip install -r requirements.txt` (contains `FL-Studio-API-Stubs`).
+- Run tests: `python -m unittest discover -v` or run a specific test (e.g., `python -m unittest test_colormap.py`).
+- Tests are focused on pure-Python utilities (color mapping, fader conversions); hardware behavior must be validated on a real X-Touch in MCU mode.
 
-## Project-specific conventions & pitfalls
-- This code runs in FL Studio's environment — imports like `mixer`, `device`, `ui` are provided by FL Studio; don't assume standard Python runtime behavior.
-- Naming: class methods often use PascalCase (e.g. `OnInit`, `SetTextDisplay`), modules use snake_case. Follow the existing casing for consistency.
-- Track mapping: `McuBaseClass.Tracks` maps UI slots to FL Studio track numbers; many page-specific behaviors depend on `mcu_pages` and `FirstTrack`.
-- "Free" mode: `mcu_pages.Free` uses virtual event IDs (`mcu_constants.FreeEventID`) and virtual tracks (`FreeTrackCount = 64`).
-- When changing visual behavior, see `mcu_colors.GetMcuColor` and tests in `test_colormap.py` to validate color mapping.
+## Debugging & validation tips
+- Use `debug.PrintMidiInfo(event)` in `OnMidiMsg` to print structured event info for investigation.
+- For visual/hardware changes, prefer unit tests that assert computed outputs (e.g., `mcu_colors.GetMcuColor` returns expected indices or `mcu_device.SetTextDisplay` constructs the expected sysex bytes) instead of relying only on connected hardware.
+- When changing screen/sysex behavior, verify bytes emitted by `mcu_device.SetTextDisplay` or `SetScreenColors` (they rely on `device.midiOutSysex`).
 
-## Common change patterns (examples)
-- Add or change knob behavior: edit `SetKnobValue` in `mcu_base_class.py` and LED behavior in `mcu_device_track_encoder_knob.py`.
-- Modify fader mapping: inspect `device_XTouch.OnMidiMsg` (pitch-bend handling) and `mcu_device_fader_conversion.McuFaderToFlFader`.
-- Update screen text or sysex formatting: modify `McuDevice.SetTextDisplay`/`SetScreenColors` and test that the sysex byte arrays conform to the MCU protocol used elsewhere in the repo.
+## Common edits & examples
+- Change knob behaviour: edit `SetKnobValue` in `mcu_base_class.py`. Update corresponding LED behavior in `mcu_device_track_encoder_knob.py` and add a unit test for edge cases.
+- Modify fader conversion: update `mcu_device_fader_conversion.McuFaderToFlFader` and add tests asserting round-trip or expected numeric ranges.
+- Adjust extenders or first-track logic: inspect `device_XTouch.SetPage` and `mcu_device.SetFirstTrackOnExtender` for how first-track numbers are distributed to attached extenders.
 
-## Integration & testing notes
-- Hardware testing requires an actual X-Touch in MCU mode (see `README.md` installation steps). Unit tests only cover CPU-side logic (colors, conversions).
-- When adding tests, prefer simple deterministic unit tests that exercise utility functions (color mappings, fader conversions) — these run in CI without FL Studio.
-
-## Where to look next (important files)
-- `device_XTouch.py`, `device_XTouch_Ext.py` (entry & event handlers)
-- `mcu_device.py` (sysex, screen, device-level send/dispatch)
-- `mcu_base_class.py` and `mcu_track.py` (mapping logic)
-- `mcu_colors.py` + tests (`test_colormap.py`, `test_mcu_colors.py`)
-- `requirements.txt` (developer dependency: FL Studio API stubs)
+## Where to look first
+- `device_XTouch.py`, `device_XTouch_Ext.py` — entry points and main behavior
+- `mcu_device.py` — hardware communication & sysex
+- `mcu_base_class.py` and `mcu_track.py` — UI mapping and per-track state
+- `mcu_colors.py` + `test_colormap.py` — color mapping logic and tests
 
 ---
-If anything here is unclear or you'd like more details (e.g., example PR template changes, suggested test cases, or an issue checklist for hardware changes), tell me what to expand. ✅
+
+## PR checklist ✅
+- Run unit tests: `python -m unittest discover -v` and fix any regressions in utilities (`mcu_colors`, `mcu_device_fader_conversion`, etc.).
+- Add a focused unit test for any logic you change (examples below). Prefer deterministic, pure-Python tests that run without FL Studio.
+- For hardware-impacting changes (sysex, screen output, extenders): manually validate using an X-Touch in MCU mode (follow `README.md` Installation steps), verify screen/LED behavior and `debug.PrintMidiInfo(event)` outputs.
+- Update `README.md` or this file when you change user-facing behavior (layout, install instructions, or wiring/ports).
+- Add a short note to the PR description describing how the change was validated (unit tests + manual steps if required).
+
+## Example unit test — color mapping 🧪
+Add tests to `test_mcu_colors.py` to assert `GetMcuColor` returns expected screen codes. Example:
+
+```python
+import unittest
+from mcu_colors import GetMcuColor, ScreenColorRed, ScreenColorWhite
+
+class TestGetMcuColor(unittest.TestCase):
+    def test_red(self):
+        # red: RGB (255,0,0) => int 0xFF0000
+        self.assertEqual(GetMcuColor(0xFF0000), ScreenColorRed)
+
+    def test_white(self):
+        self.assertEqual(GetMcuColor(0xFFFFFF), ScreenColorWhite)
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+If you'd like, I can add the test file and a short PR checklist entry as a commit — tell me whether to proceed. ✅
